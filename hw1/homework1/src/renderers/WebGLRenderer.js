@@ -26,7 +26,7 @@ class WebGLRenderer {
         gl.depthFunc(gl.LEQUAL); // Near things obscure far things
 
         console.assert(this.lights.length != 0, "No light");
-        console.assert(this.lights.length == 1, "Multiple lights");
+        //console.assert(this.lights.length == 1, "Multiple lights");
 
         for (let l = 0; l < this.lights.length; l++) {
             // Draw light

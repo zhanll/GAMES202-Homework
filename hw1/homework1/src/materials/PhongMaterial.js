@@ -14,6 +14,17 @@ class PhongMaterial extends Material {
             'uLightMVP': { type: 'matrix4fv', value: lightMVP },
 
         }, [], vertexShader, fragmentShader);
+
+        this.scale = scale;
+    }
+
+    changeLight(light, translate) {
+        let lightMVP = light.CalcLightMVP(translate, this.scale);
+        let lightIntensity = light.mat.GetIntensity();
+
+        this.uniforms['uLightIntensity'] = { type: '3fv', value: lightIntensity };
+        this.uniforms['uShadowMap'] = { type: 'texture', value: light.fbo };
+        this.uniforms['uLightMVP'] = { type: 'matrix4fv', value: lightMVP };
     }
 }
 

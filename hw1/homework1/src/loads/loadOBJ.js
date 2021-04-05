@@ -23,6 +23,7 @@ function loadOBJ(renderer, path, name, objMaterial, transform) {
 				.load(name + '.obj', function (object) {
 					object.traverse(function (child) {
 						if (child.isMesh) {
+							
 							let geo = child.geometry;
 							let mat;
 							if (Array.isArray(child.material)) mat = child.material[0];
@@ -62,6 +63,7 @@ function loadOBJ(renderer, path, name, objMaterial, transform) {
 								let shadowMeshRender = new MeshRender(renderer.gl, mesh, data);
 								renderer.addShadowMeshRender(shadowMeshRender);
 							});
+							
 						}
 					});
 				}, onProgress, onError);

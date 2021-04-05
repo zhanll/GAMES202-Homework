@@ -45,10 +45,13 @@ function GAMES202Main() {
 	// Add lights
 	// light - is open shadow map == true
 	let lightPos = [0, 80, 80];
+	let lightPos2 = [80, 80, 0];
 	let focalPoint = [0, 0, 0];
 	let lightUp = [0, 1, 0]
 	const directionLight = new DirectionalLight(5000, [1, 1, 1], lightPos, focalPoint, lightUp, true, renderer.gl);
+	const directionLight2 = new DirectionalLight(5000, [1, 1, 1], lightPos2, focalPoint, lightUp, true, renderer.gl);
 	renderer.addLight(directionLight);
+	renderer.addLight(directionLight2);
 
 	// Add shapes
 	
