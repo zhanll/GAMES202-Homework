@@ -37,16 +37,19 @@ class WebGLRenderer {
             // Shadow pass
             if (this.lights[l].entity.hasShadowMap == true) {
                 for (let i = 0; i < this.shadowMeshes.length; i++) {
+                    this.gl.useProgram(this.shadowMeshes[i].shader.program.glShaderProgram);
+                    this.gl.uniform1i(this.shadowMeshes[i].shader.program.uniforms.uLightIndex, l);
                     this.shadowMeshes[i].draw(this.camera);
                 }
             }
+        }
 
             // Camera pass
             for (let i = 0; i < this.meshes.length; i++) {
-                this.gl.useProgram(this.meshes[i].shader.program.glShaderProgram);
-                this.gl.uniform3fv(this.meshes[i].shader.program.uniforms.uLightPos, this.lights[l].entity.lightPos);
+                //this.gl.useProgram(this.meshes[i].shader.program.glShaderProgram);
+                //this.gl.uniform3fv(this.meshes[i].shader.program.uniforms.uLightPos, this.lights[l].entity.lightPos);
                 this.meshes[i].draw(this.camera);
             }
-        }
+        //}
     }
 }

@@ -173,19 +173,9 @@ class MeshRender {
 		}
 	}
 
-	draw(camera) {
-		const gl = this.gl;
-
-		gl.bindFramebuffer(gl.FRAMEBUFFER, this.material.frameBuffer);
-		if (this.material.frameBuffer != null) {
-			// Shadow map
-			gl.viewport(0.0, 0.0, resolution, resolution);
-		} else {
-			gl.viewport(0.0, 0.0, window.screen.width, window.screen.height);
-		}
-
+	drawInternal(gl, camera) {
 		gl.useProgram(this.shader.program.glShaderProgram);
-
+	
 		// Bind geometry information
 		this.bindGeometryInfo();
 
@@ -202,5 +192,23 @@ class MeshRender {
 			const offset = 0;
 			gl.drawElements(gl.TRIANGLES, vertexCount, type, offset);
 		}
+	}
+
+	draw(camera) {
+		const gl = this.gl;
+
+		if (this.material.frameBuffer != null) {
+			// Shadow map
+			for(let fb=0; fb<this.material.frameBuffer.length; ++fb) {
+				gl.bindFramebuffer(gl.FRAMEBUFFER, this.material.frameBuffer[fb]);
+				gl.viewport(0.0, 0.0, resolution, resolution);
+				this.drawInternal(gl, camera);
+			}
+		} else {
+			gl.bindFramebuffer(gl.FRAMEBUFFER, this.material.frameBuffer);
+			gl.viewport(0.0, 0.0, window.screen.width, window.screen.height);
+			this.drawInternal(gl, camera);
+		}
+	
 	}
 }

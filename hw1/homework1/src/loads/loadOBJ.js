@@ -47,11 +47,14 @@ function loadOBJ(renderer, path, name, objMaterial, transform) {
 							let Translation = [transform.modelTransX, transform.modelTransY, transform.modelTransZ];
 							let Scale = [transform.modelScaleX, transform.modelScaleY, transform.modelScaleZ];
 
-							let light = renderer.lights[0].entity;
+							let lights = [];
+							for(let l=0; l<renderer.lights.length; ++l){
+								lights.push(renderer.lights[l].entity);
+							}
 							switch (objMaterial) {
 								case 'PhongMaterial':
-									material = buildPhongMaterial(colorMap, mat.specular.toArray(), light, Translation, Scale, "./src/shaders/phongShader/phongVertex.glsl", "./src/shaders/phongShader/phongFragment.glsl");
-									shadowMaterial = buildShadowMaterial(light, Translation, Scale, "./src/shaders/shadowShader/shadowVertex.glsl", "./src/shaders/shadowShader/shadowFragment.glsl");
+									material = buildPhongMaterial(colorMap, mat.specular.toArray(), lights, Translation, Scale, "./src/shaders/phongShader/phongVertex.glsl", "./src/shaders/phongShader/phongFragment.glsl");
+									shadowMaterial = buildShadowMaterial(lights, Translation, Scale, "./src/shaders/shadowShader/shadowVertex.glsl", "./src/shaders/shadowShader/shadowFragment.glsl");
 									break;
 							}
 

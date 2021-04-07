@@ -2,7 +2,9 @@
 precision mediump float;
 #endif
 
-uniform vec3 uLightPos;
+#define NUM_LIGHTS 2
+
+uniform vec3 uLightPos[NUM_LIGHTS];
 uniform vec3 uCameraPos;
 
 varying highp vec3 vNormal;

@@ -1,28 +1,28 @@
 class ShadowMaterial extends Material {
 
-    constructor(light, translate, scale, vertexShader, fragmentShader) {
-        let lightMVP = light.CalcLightMVP(translate, scale);
+    constructor(lights, translate, scale, vertexShader, fragmentShader) {
+        let uniforms = {};
+        let fbo = [];
+        for(let l=0; l<lights.length; ++l) {
+            let namePos = 'uLightPos[' + l + ']';
+            uniforms[namePos] = { type: '3fv', value: lights[l].lightPos };
 
-        super({
-            'uLightMVP': { type: 'matrix4fv', value: lightMVP }
-        }, [], vertexShader, fragmentShader, light.fbo);
+            let nameMVP = 'uLightMVP[' + l + ']';
+            uniforms[nameMVP] = { type: 'matrix4fv', value: lights[l].CalcLightMVP(translate, scale) };
 
-        this.scale = scale;
-    }
+            fbo.push( lights[l].fbo );
+        }
 
-    changeLight(light, translate) {
-        let lightMVP = light.CalcLightMVP(translate, this.scale);
-
-        this.uniforms['uLightMVP'] = {type: 'matrix4fv', value: lightMVP};
+        super(uniforms, [], vertexShader, fragmentShader, fbo);
     }
 }
 
-async function buildShadowMaterial(light, translate, scale, vertexPath, fragmentPath) {
+async function buildShadowMaterial(lights, translate, scale, vertexPath, fragmentPath) {
 
 
     let vertexShader = await getShaderString(vertexPath);
     let fragmentShader = await getShaderString(fragmentPath);
 
-    return new ShadowMaterial(light, translate, scale, vertexShader, fragmentShader);
+    return new ShadowMaterial(lights, translate, scale, vertexShader, fragmentShader);
 
 }

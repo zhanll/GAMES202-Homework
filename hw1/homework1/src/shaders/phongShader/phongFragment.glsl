@@ -2,13 +2,15 @@
 precision mediump float;
 #endif
 
+#define NUM_LIGHTS 2
+
 // Phong related variables
 uniform sampler2D uSampler;
 uniform vec3 uKd;
 uniform vec3 uKs;
-uniform vec3 uLightPos;
+uniform vec3 uLightPos[NUM_LIGHTS];
 uniform vec3 uCameraPos;
-uniform vec3 uLightIntensity;
+uniform vec3 uLightIntensity[NUM_LIGHTS];
 
 varying highp vec2 vTextureCoord;
 varying highp vec3 vFragPos;
@@ -24,11 +26,11 @@ varying highp vec3 vNormal;
 #define PI 3.141592653589793
 #define PI2 6.283185307179586
 
-#define lightSize 0.001
+#define lightSize 0.1
 
-uniform sampler2D uShadowMap;
+uniform sampler2D uShadowMap[NUM_LIGHTS];
 
-varying vec4 vPositionFromLight;
+varying vec4 vPositionFromLight[NUM_LIGHTS];
 
 highp float rand_1to1(highp float x ) { 
   // -1 -1
@@ -86,16 +88,11 @@ void uniformDiskSamples( const in vec2 randomSeed ) {
 }
 
 float findBlocker( sampler2D shadowMap,  vec2 uv, float zReceiver ) {
-  const float resolution = 2048.0;
   const float nearPlane = 0.1;
-  const float bias = EPS;
-
-  // depth of shadow map
-  float closestDepth = unpack(texture2D(shadowMap, uv));
 
   // (zReceiver - NearPlane) / zReceiver = regionSize / lightSize
-  //float regionSize = (zReceiver - nearPlane) * lightSize / zReceiver / resolution * 8.0;
-  float regionSize = 16.0 / resolution;
+  float regionSize = (zReceiver - nearPlane) * lightSize / zReceiver;
+  regionSize = clamp(regionSize, 0.0, 1.0);
 
   poissonDiskSamples(uv);
 
@@ -105,13 +102,18 @@ float findBlocker( sampler2D shadowMap,  vec2 uv, float zReceiver ) {
   for (int i = 0; i < NUM_SAMPLES; ++i ) {
     vec2 coords = uv + poissonDisk[i] * regionSize;
     float depth = unpack(texture2D(shadowMap, coords));
-    if(depth - bias <= closestDepth) {
+
+    if(depth < EPS) {
+      continue;
+    }
+
+    if(depth < zReceiver) {
       ++blockerNum;
       blockerSum += depth;
     }
   }
 
-  if(blockerNum == 0.0) {
+  if(blockerNum < EPS) {
     return 0.0;
   }
 
@@ -127,6 +129,9 @@ float PCF(sampler2D shadowMap, vec4 coords, float filterSize) {
   for (int i = 0; i < NUM_SAMPLES; ++i ) {
     vec2 uv = coords.xy + poissonDisk[i]*filterSize;
     float depth = unpack(texture2D(shadowMap, uv));
+    if(depth < EPS) {
+      depth = 1.0;
+    }
     float visibility = depth < coords.z - bias ? 0.0 : 1.0;
     sum += visibility;
   }
@@ -137,18 +142,17 @@ float PCF(sampler2D shadowMap, vec4 coords, float filterSize) {
 
 float PCSS(sampler2D shadowMap, vec4 coords){
 
-  const float resolution = 2048.0;
   float depthReceiver = coords.z;
 
   // STEP 1: avgblocker depth
   float depthBlocker = findBlocker(shadowMap, coords.xy, depthReceiver);
-  //return depthBlocker;
   if(depthBlocker < EPS) {
-    return 0.0;
+    return 1.0;
   }
 
   // STEP 2: penumbra size
-  float penumbraSize = (depthReceiver - depthBlocker) /** lightSize*/ / depthBlocker/* / resolution * 16.0*/;
+  float penumbraSize = (depthReceiver - depthBlocker) * lightSize / depthBlocker;
+  penumbraSize = clamp(penumbraSize, 0.0, 1.0);
 
   // STEP 3: filtering
   return PCF(shadowMap, coords, penumbraSize);
@@ -161,17 +165,17 @@ float useShadowMap(sampler2D shadowMap, vec4 shadowCoord){
   return closestDepth < shadowCoord.z - EPS ? 0.0 : 1.0;
 }
 
-vec3 blinnPhong() {
+vec3 blinnPhong(vec3 lightPos, vec3 lightIntensity) {
   vec3 color = texture2D(uSampler, vTextureCoord).rgb;
   color = pow(color, vec3(2.2));
 
   vec3 ambient = 0.05 * color;
 
-  vec3 lightDir = normalize(uLightPos);
+  vec3 lightDir = normalize(lightPos);
   vec3 normal = normalize(vNormal);
   float diff = max(dot(lightDir, normal), 0.0);
   vec3 light_atten_coff =
-      uLightIntensity / pow(length(uLightPos - vFragPos), 2.0);
+      lightIntensity / pow(length(lightPos - vFragPos), 2.0);
   vec3 diffuse = diff * light_atten_coff * color;
 
   vec3 viewDir = normalize(uCameraPos - vFragPos);
@@ -185,17 +189,22 @@ vec3 blinnPhong() {
 }
 
 void main(void) {
-  vec3 shadowCoord = vPositionFromLight.xyz / vPositionFromLight.w;
-  shadowCoord = shadowCoord * 0.5 + 0.5;
 
-  float visibility;
-  //visibility = useShadowMap(uShadowMap, vec4(shadowCoord, 1.0));
-  //visibility = PCF(uShadowMap, vec4(shadowCoord, 1.0), 0.014);
-  visibility = PCSS(uShadowMap, vec4(shadowCoord, 1.0));
+  vec3 result;
 
-  //vec3 phongColor = blinnPhong();
+  for(int l=0; l<NUM_LIGHTS; ++l) {
+    vec3 shadowCoord = vPositionFromLight[l].xyz / vPositionFromLight[l].w;
+    shadowCoord = shadowCoord * 0.5 + 0.5;
 
-  //gl_FragColor = vec4(phongColor * visibility, 1.0);
-  //gl_FragColor = vec4(phongColor, 1.0);
-  gl_FragColor = vec4(vec3(visibility), 1.0);
+    float visibility;
+    //visibility = useShadowMap(uShadowMap[l], vec4(shadowCoord, 1.0));
+    //visibility = PCF(uShadowMap[l], vec4(shadowCoord, 1.0), 0.014);
+    visibility = PCSS(uShadowMap[l], vec4(shadowCoord, 1.0));
+
+    vec3 phongColor = blinnPhong(uLightPos[l], uLightIntensity[l]);
+
+    result += phongColor*visibility;
+  }
+
+  gl_FragColor = vec4(result, 1.0);
 }
