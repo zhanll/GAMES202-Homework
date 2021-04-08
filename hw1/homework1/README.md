@@ -20,3 +20,14 @@ http-server . -p 8000
 - Scroll mouse wheel to zoom in/out
 - Hold left mouse to move the camera
 - Hold left mouse only to drag the GUI
+
+## Result
+
+### ShadowMap
+![SM](./images/SM_Dynamic.gif)
+
+### PCF
+![PCF](./images/PCF_Dynamic.gif)
+
+### PCSS
+![PCSS](./images/PCSS_Dynamic.gif)
