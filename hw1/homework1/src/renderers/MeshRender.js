@@ -6,11 +6,12 @@ class MeshRender {
 	#texcoordBuffer;
 	#indicesBuffer;
 
-	constructor(gl, mesh, material) {
+	constructor(gl, mesh, material, movable) {
 
 		this.gl = gl;
 		this.mesh = mesh;
 		this.material = material;
+		this.movable = movable;
 
 		this.#vertexBuffer = gl.createBuffer();
 		this.#normalBuffer = gl.createBuffer();
@@ -194,16 +195,15 @@ class MeshRender {
 		}
 	}
 
-	draw(camera) {
+	draw(camera, lightIndex) {
+		
 		const gl = this.gl;
 
 		if (this.material.frameBuffer != null) {
 			// Shadow map
-			for(let fb=0; fb<this.material.frameBuffer.length; ++fb) {
-				gl.bindFramebuffer(gl.FRAMEBUFFER, this.material.frameBuffer[fb]);
-				gl.viewport(0.0, 0.0, resolution, resolution);
-				this.drawInternal(gl, camera);
-			}
+			gl.bindFramebuffer(gl.FRAMEBUFFER, this.material.frameBuffer[lightIndex]);
+			gl.viewport(0.0, 0.0, resolution, resolution);
+			this.drawInternal(gl, camera);
 		} else {
 			gl.bindFramebuffer(gl.FRAMEBUFFER, this.material.frameBuffer);
 			gl.viewport(0.0, 0.0, window.screen.width, window.screen.height);

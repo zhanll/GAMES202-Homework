@@ -162,6 +162,9 @@ float PCSS(sampler2D shadowMap, vec4 coords){
 
 float useShadowMap(sampler2D shadowMap, vec4 shadowCoord){
   float closestDepth = unpack(texture2D(shadowMap, shadowCoord.xy));
+  if(closestDepth < EPS) {
+    return 1.0;
+  }
   return closestDepth < shadowCoord.z - EPS ? 0.0 : 1.0;
 }
 
@@ -197,9 +200,9 @@ void main(void) {
     shadowCoord = shadowCoord * 0.5 + 0.5;
 
     float visibility;
-    //visibility = useShadowMap(uShadowMap[l], vec4(shadowCoord, 1.0));
+    visibility = useShadowMap(uShadowMap[l], vec4(shadowCoord, 1.0));
     //visibility = PCF(uShadowMap[l], vec4(shadowCoord, 1.0), 0.014);
-    visibility = PCSS(uShadowMap[l], vec4(shadowCoord, 1.0));
+    //visibility = PCSS(uShadowMap[l], vec4(shadowCoord, 1.0));
 
     vec3 phongColor = blinnPhong(uLightPos[l], uLightIntensity[l]);
 
@@ -207,4 +210,5 @@ void main(void) {
   }
 
   gl_FragColor = vec4(result, 1.0);
+  
 }

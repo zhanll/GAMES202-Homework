@@ -1,4 +1,4 @@
-function loadOBJ(renderer, path, name, objMaterial, transform) {
+function loadOBJ(renderer, path, name, objMaterial, transform, movable) {
 
 	const manager = new THREE.LoadingManager();
 	manager.onProgress = function (item, loaded, total) {
@@ -59,11 +59,11 @@ function loadOBJ(renderer, path, name, objMaterial, transform) {
 							}
 
 							material.then((data) => {
-								let meshRender = new MeshRender(renderer.gl, mesh, data);
+								let meshRender = new MeshRender(renderer.gl, mesh, data, movable);
 								renderer.addMeshRender(meshRender);
 							});
 							shadowMaterial.then((data) => {
-								let shadowMeshRender = new MeshRender(renderer.gl, mesh, data);
+								let shadowMeshRender = new MeshRender(renderer.gl, mesh, data, movable);
 								renderer.addShadowMeshRender(shadowMeshRender);
 							});
 							
