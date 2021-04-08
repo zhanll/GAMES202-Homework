@@ -17,7 +17,7 @@ varying highp vec3 vFragPos;
 varying highp vec3 vNormal;
 
 // Shadow map related variables
-#define NUM_SAMPLES 20
+#define NUM_SAMPLES 100
 #define BLOCKER_SEARCH_NUM_SAMPLES NUM_SAMPLES
 #define PCF_NUM_SAMPLES NUM_SAMPLES
 #define NUM_RINGS 10
@@ -27,6 +27,7 @@ varying highp vec3 vNormal;
 #define PI2 6.283185307179586
 
 #define lightSize 0.1
+#define resolution 2048.0
 
 uniform sampler2D uShadowMap[NUM_LIGHTS];
 
@@ -151,7 +152,7 @@ float PCSS(sampler2D shadowMap, vec4 coords){
   }
 
   // STEP 2: penumbra size
-  float penumbraSize = (depthReceiver - depthBlocker) * lightSize / depthBlocker;
+  float penumbraSize = (depthReceiver - depthBlocker) * lightSize / depthBlocker * 256.0 / resolution;
   penumbraSize = clamp(penumbraSize, 0.0, 1.0);
 
   // STEP 3: filtering
@@ -200,9 +201,9 @@ void main(void) {
     shadowCoord = shadowCoord * 0.5 + 0.5;
 
     float visibility;
-    visibility = useShadowMap(uShadowMap[l], vec4(shadowCoord, 1.0));
+    //visibility = useShadowMap(uShadowMap[l], vec4(shadowCoord, 1.0));
     //visibility = PCF(uShadowMap[l], vec4(shadowCoord, 1.0), 0.014);
-    //visibility = PCSS(uShadowMap[l], vec4(shadowCoord, 1.0));
+    visibility = PCSS(uShadowMap[l], vec4(shadowCoord, 1.0));
 
     vec3 phongColor = blinnPhong(uLightPos[l], uLightIntensity[l]);
 
