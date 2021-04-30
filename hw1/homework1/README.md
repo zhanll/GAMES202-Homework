@@ -1,4 +1,4 @@
-# GAMES202 homework0
+# GAMES202 homework1
 
 ## Usage
 
