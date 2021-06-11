@@ -144,12 +144,13 @@ bool RayMarch(vec3 ori, vec3 dir, out vec3 hitPos) {
   const float stepMax = 16.0;
 
   float step = stepMin;
+  float t = step;
   for (int i = 0; i < 50; ++i) {
     if (step >= stepMax) {
       return false;
     }
 
-    vec3 p = ori + dir * step;
+    vec3 p = ori + dir * t;
 
     float depthR = GetDepth(p);
     vec2 uv = GetScreenCoordinate(p);
@@ -157,14 +158,14 @@ bool RayMarch(vec3 ori, vec3 dir, out vec3 hitPos) {
 
     if (depthR >= depthG) {
       if (step <= stepMin) {
-        hitPos = p;
+        hitPos = texture2D(uGPosWorld, uv).xyz;
         return true;
       }
 
       step *= 0.5;
     } else {
+      t += step;
       step *= 2.0;
-      ori = p;
     }
   }
 
