@@ -34,16 +34,17 @@ class FBO{
         }
         gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
 
-        var GBufferNum = 5;
+        var GBufferNum = 6;
 	    framebuffer.attachments = [];
-	    framebuffer.textures = []
+	    framebuffer.textures = [];
 
 	    for (var i = 0; i < GBufferNum; i++) {
-	    	var attachment = gl_draw_buffers['COLOR_ATTACHMENT' + i + '_WEBGL'];
+            var attachment = gl_draw_buffers['COLOR_ATTACHMENT' + i + '_WEBGL'];
 	    	var texture = CreateAndBindColorTargetTexture(framebuffer, attachment);
 	    	framebuffer.attachments.push(attachment);
 	    	framebuffer.textures.push(texture);
 	    }
+
 	    // * Tell the WEBGL_draw_buffers extension which FBO attachments are
 	    //   being used. (This extension allows for multiple render targets.)
 	    gl_draw_buffers.drawBuffersWEBGL(framebuffer.attachments);

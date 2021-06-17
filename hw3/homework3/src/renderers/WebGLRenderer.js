@@ -2,6 +2,7 @@ class WebGLRenderer {
     meshes = [];
     shadowMeshes = [];
     bufferMeshes = [];
+    mipmapMeshes = [];
     lights = [];
 
     constructor(gl, camera) {
@@ -18,6 +19,7 @@ class WebGLRenderer {
     addMeshRender(mesh) { this.meshes.push(mesh); }
     addShadowMeshRender(mesh) { this.shadowMeshes.push(mesh); }
     addBufferMeshRender(mesh) { this.bufferMeshes.push(mesh); }
+    addMipmapMeshRender(mesh) { this.mipmapMeshes.push(mesh); }
 
     render() {
         console.assert(this.lights.length != 0, "No light");
@@ -60,6 +62,34 @@ class WebGLRenderer {
             // this.bufferMeshes[i].draw(this.camera);
         }
         // return
+
+        // Mipmap pass
+        let MIP_lEVEL = 7;
+        for (let level = 1; level <= MIP_lEVEL; ++level) {
+            updatedParamters['uLevel'] = level;
+
+            if (level % 2 == 1) {
+
+                if (level == 1) {
+                    updatedParamters['uMip'] = this.camera.fbo.textures[1];
+                } else {
+                    updatedParamters['uMip'] = this.camera.fboMipmap2.textures[5];
+                }
+
+                for (let i = 0; i < this.mipmapMeshes.length; i++) {
+                    this.mipmapMeshes[i].draw(this.camera, this.camera.fboMipmap1, updatedParamters);
+                }
+
+            } else {
+
+                updatedParamters['uMip'] = this.camera.fboMipmap1.textures[5];
+
+                for (let i = 0; i < this.mipmapMeshes.length; i++) {
+                    this.mipmapMeshes[i].draw(this.camera, this.camera.fboMipmap2, updatedParamters);
+                }
+                
+            }
+        }
 
         // Camera pass
         for (let i = 0; i < this.meshes.length; i++) {
