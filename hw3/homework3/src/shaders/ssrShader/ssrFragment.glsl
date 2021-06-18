@@ -12,6 +12,7 @@ uniform sampler2D uGShadow;
 uniform sampler2D uGPosWorld;
 uniform sampler2D uMipmap;
 uniform float uWidth;
+uniform float uHeight;
 
 varying mat4 vWorldToScreen;
 varying highp vec4 vPosWorld;
@@ -240,7 +241,7 @@ bool RayMarchWithMipmap(vec3 ori, vec3 dir, out vec3 hitPos) {
   vec2 P0 = (H0.xy * k0) * 0.5 + 0.5;
   vec2 P1 = (H1.xy * k1) * 0.5 + 0.5;
 
-  P1 += vec2((distSquared(P0, P1) < 0.0001) ? 0.01 : 0.0);
+  //P1 += vec2((distSquared(P0, P1) < 0.0001) ? 0.01 : 0.0);
   vec2 delta = P1 - P0;
 
   bool permute = false;
@@ -252,79 +253,36 @@ bool RayMarchWithMipmap(vec3 ori, vec3 dir, out vec3 hitPos) {
   }
 
   float stepDir = sign(delta.x);
-  float invdx = stepDir / delta.x;
-
-  // track the derivatives of Q and k
-  vec3 dQ = (Q1 - Q0) * invdx;
-  float dk = (k1 - k0) * invdx;
-  vec2 dP = vec2(stepDir, delta.y * invdx);
-
-  dP *= stride;
-  dQ *= stride;
-  dk *= stride;
-
-  P0 += dP;
-  Q0 += dQ;
-  k0 += dk;
-
-  // slide P from P0 to P1, (now-homogeneous) Q from Q0 to Q1, k from k0 to k1
-  vec3 Q = Q0;
-  float k = k0;
-  vec2 P = P0;
-  float end = P1.x * stepDir;
-  vec2 hitPixel;
+  float t = 0.0;
   int level = 0;
-  float oneStep = 1.0;
 
-  for (float stepCount = 0.0; stepCount < maxSteps; stepCount += 1.0) {
-    
-    if (P.x * stepDir > end) {
+  for (int i=0; i<128; ++i) {
+    float s = (t+stride) * stepDir / delta.x;
+    if (s >= 1.0) {
       break;
     }
 
-    // project back from homogeneous to camera space
-    hitPixel = permute ? P.yx : P;
-
-    // the depth range that the ray covers within this loop iteration
-    // assume that the ray is moving in increasing z and swap if backwards
-
-    // compute the value at 1/2 pixel into the future
-    float rayZ = (dQ.z * 0.5 + Q.z) / (dk * 0.5 + k);
-    //for (int i = 0; i < MIP_LEVEL; ++i) {
-
-      float depth = GetMipmapDepth(hitPixel, 0);
-      if (rayZ >= depth) {
-
-        //if (level < 1) {
-
-          // advance Q based on the number of steps
-          //Q.xy += dQ.xy * stepCount;
-          hitPos = Q * (1.0 / k);
-          return true;
-
-        /*} else {
-
-          --level;
-          oneStep *= 0.5;
-
-        }
-
+    vec2 P = P0 * (1.0-s) + P1 * s;
+    vec3 Q = Q0 * (1.0-s) + Q1 * s;
+    vec2 uv = permute ? P.yx : P;
+    float depth = GetMipmapDepth(uv, level);
+    if (Q.z >= depth) {
+      if (level < 1) {
+        float k = k0 * (1.0-s) + k1 * s;
+        hitPos = Q / k;
+        return true;
       } else {
-
-        if (level+1 < MIP_LEVEL) {
-          ++level;
-          oneStep *= 2.0;
-        }
-        break;
-
-      }*/
-
+        --level;
+        stride *= 0.5;
+      }
+    } else {
+      t += stride;
+      ++level;
+      stride *= 2.0;
+      if (level >= MIP_LEVEL) {
+        return false;
+      }
     }
-
-    P += dP * oneStep;
-    Q += dQ * oneStep;
-    k += dk * oneStep;
-    
   }
 
   return false;

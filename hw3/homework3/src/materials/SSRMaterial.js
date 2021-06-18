@@ -15,6 +15,7 @@ class SSRMaterial extends Material {
             'uGPosWorld': { type: 'texture', value: camera.fbo.textures[4] },
             'uMipmap': { type: 'texture', value: camera.fboMipmap1.textures[5] },
             'uWidth': { type: '1f', value: window.screen.width },
+            'uHeight': { type: '1f', value: window.screen.height },
         }, [], vertexShader, fragmentShader);
     }
 }
