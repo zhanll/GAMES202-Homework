@@ -221,10 +221,6 @@ float distSquared( vec2 A, vec2 B )
 
 // with mipmap
 bool RayMarchWithMipmap(vec3 ori, vec3 dir, out vec3 hitPos) {
-  const float maxDistance = 16.0;
-  float stride = 1.0 / uWidth;
-  const float maxSteps = 64.0;
-
   vec3 tail = ori + dir * maxDistance;
 
   // project into screen space
@@ -241,49 +237,54 @@ bool RayMarchWithMipmap(vec3 ori, vec3 dir, out vec3 hitPos) {
   vec2 P0 = (H0.xy * k0) * 0.5 + 0.5;
   vec2 P1 = (H1.xy * k1) * 0.5 + 0.5;
 
-  //P1 += vec2((distSquared(P0, P1) < 0.0001) ? 0.01 : 0.0);
-  vec2 delta = P1 - P0;
+  vec2 C0 = vec2(round(P0.x * uWidth - 0.5), round(P0.y * uHeight - 0.5));
+  vec2 C1 = vec2(round(P1.x * uWidth - 0.5), round(P1.y * uHeight - 0.5));
 
-  bool permute = false;
+  vec2 delta = C1 - C0;
+
   if (abs(delta.x) < abs(delta.y)) {
-    permute = true;
-    delta = delta.yx;
-    P0 = P0.yx;
-    P1 = P1.yx;
-  }
+    float stride = sign(delta.y);
+    float s = stride;
+    int level = 0;
 
-  float stepDir = sign(delta.x);
-  float t = 0.0;
-  int level = 0;
+    for (float t=1.0; t<=128.0; t+=1.0) {
+      float percent = s / delta.y;
+      vec2 C = C0 * (1.0-percent) + C1 * percent;
+      if (percent >= 1.0) {
+        break;
+      }
 
-  for (int i=0; i<128; ++i) {
-    float s = (t+stride) * stepDir / delta.x;
-    if (s >= 1.0) {
-      break;
-    }
+      vec2 uv = vec2( (C.x+0.5)/uWidth, (C.y+0.5)/uHeight );
+      bool odd = int(C.y) % 2 == 1 || int(C.x) % 2 == 1;
+      int mipLevel = odd ? 0 : level;
+      float depth = GetMipmapDepth(uv, mipLevel);
 
-    vec2 P = P0 * (1.0-s) + P1 * s;
-    vec3 Q = Q0 * (1.0-s) + Q1 * s;
-    vec2 uv = permute ? P.yx : P;
-    float depth = GetMipmapDepth(uv, level);
-    if (Q.z >= depth) {
-      if (level < 1) {
-        float k = k0 * (1.0-s) + k1 * s;
-        hitPos = Q / k;
-        return true;
+      vec3 Q = Q0 * (1.0-percent) + Q1 * percent;
+      float k = k0 * (1.0-percent) + k1 * percent;
+      float rayZ = Q.z / k;
+
+      if (rayZ >= depth) {
+
+        if (mipLevel < 1) {
+          hitPos = Q / k;
+          return true;
+        } else {
+          --level;
+          stride *= 0.5;
+        }
+
       } else {
-        --level;
-        stride *= 0.5;
+        ++leve;
+        stride *= 2.0;
       }
-    } else {
-      t += stride;
-      ++level;
-      stride *= 2.0;
-      if (level >= MIP_LEVEL) {
-        return false;
-      }
+
+      s += stride;
     }
+    
+  } else {
+
   }
+  
 
   return false;
 }
