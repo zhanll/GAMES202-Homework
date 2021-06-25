@@ -13,9 +13,12 @@ uniform sampler2D uGPosWorld;
 uniform sampler2D uMipmap;
 uniform float uWidth;
 uniform float uHeight;
+uniform vec2 uLineStart;
+uniform vec2 uLineEnd;
 
 varying mat4 vWorldToScreen;
 varying highp vec4 vPosWorld;
+varying mat4 vWorldToView;
 
 #define M_PI 3.1415926535897932384626433832795
 #define TWO_PI 6.283185307
@@ -178,11 +181,6 @@ bool RayMarch(vec3 ori, vec3 dir, out vec3 hitPos) {
   return false;
 }
 
-// transform position from World Space to Screen Space
-vec3 WorldToScreen(vec3 posWorld) {
-  return Project(vWorldToScreen * vec4(posWorld, 1.0)).xyz * 0.5 + 0.5;
-}
-
 // mipmap texture min uv.x of level
 float GetRangeMin(int level) {
   if (level <= 1) {
@@ -213,15 +211,33 @@ float GetMipmapDepth(vec2 uv, int level) {
   return texture2D(uMipmap, vec2(u,v)).x;
 }
 
-float distSquared( vec2 A, vec2 B )
-{
-    vec2 C = A - B;
-    return dot( C, C );
+vec2 GetMipmapUV(vec2 uv, int level) {
+  float sideLen = GetSideLength(level);
+  float u = GetRangeMin(level) + uv.x * sideLen;
+  float v = uv.y * sideLen;
+  return vec2(u,v);
+}
+
+float snapToLevel(int level, float u, bool permute) {
+  if (level < 1) {
+    return 1.0;
+  }
+
+  float x = u * (permute ? uHeight : uWidth);
+  float l = pow(2.0, float(level));
+  float a = mod(x, l);
+
+  return l - a;
 }
 
 // with mipmap
 bool RayMarchWithMipmap(vec3 ori, vec3 dir, out vec3 hitPos) {
+  const float maxDistance = 8.0;
   vec3 tail = ori + dir * maxDistance;
+
+  // to view space
+  vec4 csOri = vWorldToView * vec4(ori, 1.0);
+  vec4 csTail = vWorldToView * vec4(tail, 1.0);
 
   // project into screen space
   vec4 H0 = vWorldToScreen * vec4(ori, 1.0);
@@ -230,73 +246,85 @@ bool RayMarchWithMipmap(vec3 ori, vec3 dir, out vec3 hitPos) {
   float k0 = 1.0 / H0.w;
   float k1 = 1.0 / H1.w;
 
-  vec3 Q0 = ori * k0;
-  vec3 Q1 = tail * k1;
+  vec3 Q0 = csOri.xyz * k0;
+  vec3 Q1 = csTail.xyz * k1;
 
   // screen space endpoints
-  vec2 P0 = (H0.xy * k0) * 0.5 + 0.5;
-  vec2 P1 = (H1.xy * k1) * 0.5 + 0.5;
+  vec2 P0 = (H0.xy * k0);
+  vec2 P1 = (H1.xy * k1);
 
-  vec2 C0 = vec2(round(P0.x * uWidth - 0.5), round(P0.y * uHeight - 0.5));
-  vec2 C1 = vec2(round(P1.x * uWidth - 0.5), round(P1.y * uHeight - 0.5));
-
-  vec2 delta = C1 - C0;
-
+  bool permute = false;
+  float stride = 2.0 / uWidth;
+  vec2 delta = P1 - P0;
   if (abs(delta.x) < abs(delta.y)) {
-    float stride = sign(delta.y);
-    float s = stride;
-    int level = 0;
+    permute = true;
+    stride = 2.0 / uHeight;
+    delta = delta.yx;
+    P0 = P0.yx;
+    P1 = P1.yx;
+  }
 
-    for (float t=1.0; t<=128.0; t+=1.0) {
-      float percent = s / delta.y;
-      vec2 C = C0 * (1.0-percent) + C1 * percent;
-      if (percent >= 1.0) {
-        break;
-      }
+  float stepDir = sign(delta.x);
+  float invdx = stepDir / delta.x;
 
-      vec2 uv = vec2( (C.x+0.5)/uWidth, (C.y+0.5)/uHeight );
-      bool odd = int(C.y) % 2 == 1 || int(C.x) % 2 == 1;
-      int mipLevel = odd ? 0 : level;
-      float depth = GetMipmapDepth(uv, mipLevel);
+  float dk = (k1 - k0) * invdx;
+  vec3 dQ = (Q1 - Q0) * invdx;
+  vec2 dP = vec2(stepDir, delta.y * invdx);
 
-      vec3 Q = Q0 * (1.0-percent) + Q1 * percent;
-      float k = k0 * (1.0-percent) + k1 * percent;
-      float rayZ = Q.z / k;
+  float s = stride;
+  float k = k0;
+  vec3 Q = Q0;
+  vec2 P = P0;
 
-      if (rayZ >= depth) {
+  float endX = stepDir * P1.x;
+  int level = 0;
+  int levelSum = 0;
 
-        if (mipLevel < 1) {
-          hitPos = Q / k;
-          return true;
-        } else {
-          --level;
-          stride *= 0.5;
-        }
-
-      } else {
-        ++leve;
-        stride *= 2.0;
-      }
-
-      s += stride;
+  for (int i=0; i<256; ++i) {
+    if (P.x * stepDir >= endX) {
+      break;
     }
-    
-  } else {
+
+    levelSum += level;
+
+    float kt = k + dk * s;
+    vec3 Qt = Q + dQ * s;
+    vec2 Pt = P + dP * s;
+
+    vec2 R = permute ? Pt.yx : Pt;
+    vec2 uv = R * 0.5 + 0.5;
+
+    float depth = GetMipmapDepth(uv, level);
+    float rayZ = -Qt.z / kt;
+    if (rayZ + 0.0001 >= depth) {
+      if (level < 1) {
+        //hitPos = vec3(float(levelSum) / 256.0);
+        hitPos = GetGBufferPosWorld(uv);
+        return true;
+      } else {
+        --level;
+        s = stride * snapToLevel(level, uv.x, permute);
+      }
+      
+    } else {
+      ++level;
+      if (level >= MIP_LEVEL) {
+        level = MIP_LEVEL - 1;
+      }
+
+      k += dk * s;
+      Q += dQ * s;
+      P += dP * s;
+
+      s = stride * snapToLevel(level, uv.x, permute);
+    }
 
   }
   
-
+  //hitPos = vec3(float(levelSum) / 256.0);
+  //return true;
   return false;
 }
-
-/*float near = 0.01; 
-float far  = 100.0; 
-
-float LinearizeDepth(float depth) 
-{
-  float z = depth * 2.0 - 1.0; // back to NDC 
-  return (2.0 * near * far) / (far + near - z * (far - near));    
-}*/
 
 #define SAMPLE_NUM 16
 
@@ -323,6 +351,8 @@ void main() {
     vec3 hitPos;
     //if ( RayMarch(vPosWorld.xyz, dir, hitPos) ) {
     if ( RayMarchWithMipmap(vPosWorld.xyz, dir, hitPos) ) {
+      //L = hitPos;
+      //break;
       vec3 wi1 = normalize(hitPos - vPosWorld.xyz);
       vec2 uv1 = GetScreenCoordinate(hitPos);
       Lind += EvalDiffuse(wi1, wo, uv) / pdf * EvalDiffuse(wi, wo, uv1) * EvalDirectionalLight(uv1);
@@ -333,11 +363,12 @@ void main() {
   L += Lind;
 
   vec3 color = pow(clamp(L, vec3(0.0), vec3(1.0)), vec3(1.0 / 2.2));
-  //vec3 color;
+  //vec3 color = L;
   //RayMarchWithMipmap(vPosWorld.xyz, vPosWorld.xyz, color);
-  //vec3 color = vec3(texture2D(uMipmap, uv).x);
-  //vec3 color = vec3(GetMipmapDepth(uv, 2));
-  //float depth = LinearizeDepth(ssd) / far; // 为了演示除以 far
-  //vec3 color = vec3(depth);
+  //vec3 color = vec3(texture2D(uMipmap, uv).x / 10.0);
+  //vec3 color = vec3(GetMipmapDepth(uv, 6) / 10.0);
+  //vec3 color = vec3(GetMipmapUV(uv, 1), 1.0);
+  //vec3 color = vec3(GetGBufferDepth(uv) / 10.0);
   gl_FragColor = vec4(vec3(color.rgb), 1.0);
+  //gl_FragColor = vec4( snapToLevel(2, 1.0 / uWidth, false) * 0.1 );
 }

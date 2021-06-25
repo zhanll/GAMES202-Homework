@@ -54,6 +54,14 @@ float GetSideLength(int level) {
   return 1.0/pow(2.0, float(level));
 }
 
+float GetGBufferDepth(vec2 uv) {
+  float depth = texture2D(uMip, uv).x;
+  if (depth < 1e-2) {
+    depth = 1000.0;
+  }
+  return depth;
+}
+
 
 void main(void) {
   float length = GetSideLength(uLevel);
@@ -61,6 +69,12 @@ void main(void) {
   float minV = 0.0;
   float maxU = GetRangeMax(uLevel);
   float maxV = length;
+
+  float lengthPrv = GetSideLength(uLevel-1);
+  float minUPrv = GetRangeMin(uLevel-1);
+  float minVPrv = 0.0;
+  float maxUPrv = GetRangeMax(uLevel-1);
+  float maxVPrv = lengthPrv;
 
   vec2 uv = gl_FragCoord.xy / vec2(float(uWidth), float(uHeight));
 
@@ -71,23 +85,39 @@ void main(void) {
     float u1 = (uv.x - minU) / length;
     float v1 = (uv.y - minV) / length;
 
-    float lengthPrv = GetSideLength(uLevel-1);
-    float minUPrv = GetRangeMin(uLevel-1);
-    float minVPrv = 0.0;
-    //float maxUPrv = GetRangeMax(uLevel-1);
-    //float maxVPrv = lengthPrv;
-    
-    float u0 = minUPrv + u1 * lengthPrv;
-    float v0 = minVPrv + v1 * lengthPrv;
+    float x1 = (float(uWidth) * length) * u1;
+    float y1 = (float(uHeight) * length) * v1;
 
-    float d00 = texture2D(uMip, vec2(u0-uUnit, v0-vUnit)).x;
-    float d01 = texture2D(uMip, vec2(u0+uUnit, v0-vUnit)).x;
-    float d10 = texture2D(uMip, vec2(u0-uUnit, v0+vUnit)).x;
-    float d11 = texture2D(uMip, vec2(u0+uUnit, v0+vUnit)).x;
+    float x01 = x1 * 2.0;
+    float x02 = x01 + 1.0;
+    float y01 = y1 * 2.0;
+    float y02 = y01 + 1.0;
+
+    float w0 = float(uWidth) * lengthPrv;
+    float u01 = minUPrv + clamp(x01 / w0, 0.0, 1.0) * lengthPrv;
+    float u02 = minUPrv + clamp(x02 / w0, 0.0, 1.0) * lengthPrv;
+
+    float h0 = float(uHeight) * lengthPrv;
+    float v01 = minVPrv + clamp(y01 / h0, 0.0, 1.0) * lengthPrv;
+    float v02 = minVPrv + clamp(y02 / h0, 0.0, 1.0) * lengthPrv;
+    
+    //float u0 = minUPrv + u1 * lengthPrv;
+    //float v0 = minVPrv + v1 * lengthPrv;
+
+    float d00 = GetGBufferDepth(vec2(u01, v01));
+    float d01 = GetGBufferDepth(vec2(u01, v02));
+    float d10 = GetGBufferDepth(vec2(u02, v01));
+    float d11 = GetGBufferDepth(vec2(u02, v02));
 
     float minDepth = min( min(d00, d01), min(d10, d11) );
     gl_FragData[5] = vec4(vec3(minDepth), 1.0);
   } else {
-    gl_FragData[5] = vec4(texture2D(uMip, uv).xyz, 1.0);
+    //if (uv.x >= minUPrv && uv.x < maxUPrv && uv.y < maxVPrv && uLevel > 1) {
+      //gl_FragData[5] = vec4(vec3(GetGBufferDepth(uv)), 1.0);
+    if (uLevel == 1) {
+      gl_FragData[5] = vec4(vec3(1000.0), 1.0);
+    } else {
+      gl_FragData[5] = vec4(vec3(GetGBufferDepth(uv)), 1.0);
+    }
   }
 }

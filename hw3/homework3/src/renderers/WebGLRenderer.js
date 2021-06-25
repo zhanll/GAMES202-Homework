@@ -76,6 +76,8 @@ class WebGLRenderer {
                     updatedParamters['uMip'] = this.camera.fboMipmap2.textures[5];
                 }
 
+                gl.bindFramebuffer(gl.FRAMEBUFFER, this.camera.fboMipmap1);
+                gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
                 for (let i = 0; i < this.mipmapMeshes.length; i++) {
                     this.mipmapMeshes[i].draw(this.camera, this.camera.fboMipmap1, updatedParamters);
                 }
@@ -84,6 +86,8 @@ class WebGLRenderer {
 
                 updatedParamters['uMip'] = this.camera.fboMipmap1.textures[5];
 
+                gl.bindFramebuffer(gl.FRAMEBUFFER, this.camera.fboMipmap2);
+                gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
                 for (let i = 0; i < this.mipmapMeshes.length; i++) {
                     this.mipmapMeshes[i].draw(this.camera, this.camera.fboMipmap2, updatedParamters);
                 }
@@ -92,6 +96,8 @@ class WebGLRenderer {
         }
 
         // Camera pass
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
         for (let i = 0; i < this.meshes.length; i++) {
             this.meshes[i].draw(this.camera, null, updatedParamters);
         }
