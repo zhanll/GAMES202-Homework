@@ -223,7 +223,7 @@ float snapToLevel(int level, float u, bool permute) {
     return 1.0;
   }
 
-  float x = u * (permute ? uHeight : uWidth);
+  float x = floor( u * (permute ? uHeight : uWidth) );
   float l = pow(2.0, float(level));
   float a = mod(x, l);
 
@@ -278,14 +278,11 @@ bool RayMarchWithMipmap(vec3 ori, vec3 dir, out vec3 hitPos) {
 
   float endX = stepDir * P1.x;
   int level = 0;
-  int levelSum = 0;
 
   for (int i=0; i<256; ++i) {
     if (P.x * stepDir >= endX) {
       break;
     }
-
-    levelSum += level;
 
     float kt = k + dk * s;
     vec3 Qt = Q + dQ * s;
@@ -298,7 +295,6 @@ bool RayMarchWithMipmap(vec3 ori, vec3 dir, out vec3 hitPos) {
     float rayZ = -Qt.z / kt;
     if (rayZ + 0.0001 >= depth) {
       if (level < 1) {
-        //hitPos = vec3(float(levelSum) / 256.0);
         hitPos = GetGBufferPosWorld(uv);
         return true;
       } else {
@@ -320,9 +316,6 @@ bool RayMarchWithMipmap(vec3 ori, vec3 dir, out vec3 hitPos) {
     }
 
   }
-  
-  //hitPos = vec3(float(levelSum) / 256.0);
-  //return true;
   return false;
 }
 
@@ -351,8 +344,6 @@ void main() {
     vec3 hitPos;
     //if ( RayMarch(vPosWorld.xyz, dir, hitPos) ) {
     if ( RayMarchWithMipmap(vPosWorld.xyz, dir, hitPos) ) {
-      //L = hitPos;
-      //break;
       vec3 wi1 = normalize(hitPos - vPosWorld.xyz);
       vec2 uv1 = GetScreenCoordinate(hitPos);
       Lind += EvalDiffuse(wi1, wo, uv) / pdf * EvalDiffuse(wi, wo, uv1) * EvalDirectionalLight(uv1);
@@ -363,12 +354,9 @@ void main() {
   L += Lind;
 
   vec3 color = pow(clamp(L, vec3(0.0), vec3(1.0)), vec3(1.0 / 2.2));
-  //vec3 color = L;
-  //RayMarchWithMipmap(vPosWorld.xyz, vPosWorld.xyz, color);
   //vec3 color = vec3(texture2D(uMipmap, uv).x / 10.0);
   //vec3 color = vec3(GetMipmapDepth(uv, 6) / 10.0);
   //vec3 color = vec3(GetMipmapUV(uv, 1), 1.0);
   //vec3 color = vec3(GetGBufferDepth(uv) / 10.0);
   gl_FragColor = vec4(vec3(color.rgb), 1.0);
-  //gl_FragColor = vec4( snapToLevel(2, 1.0 / uWidth, false) * 0.1 );
 }
