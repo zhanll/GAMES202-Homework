@@ -9,7 +9,8 @@
 ## 说明
 
 ### Bonus 1
-- 暂未实现Mipmap加速
+- Mipmap加速实现在hw3-effective分支
+- 由于Mipmap的生成需要反复读写framebuffer，且最终遍历次数与main分支相差无几，导致最终性能严重下降，仅供参考
 
 
 ## Result
