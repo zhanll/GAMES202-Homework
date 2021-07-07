@@ -184,18 +184,6 @@ public:
 
     void Interreflection(const Scene* scene, Eigen::MatrixXf& outCoeffs, int col, int bounce, const Point3f& v, const Normal3f& n)
     {
-        if (bounce-- <= 0)
-        {
-            return;
-        }
-
-        const auto mesh = scene->getMeshes()[0];
-
-		constexpr double area = 4.0 * M_PI;
-        constexpr double albedo = 1.0 / M_PI;
-        const double factor = area / m_SampleCount;
-        const double avg = 1.0 / m_SampleCount;
-
 		const int sample_side = static_cast<int>(floor(sqrt(m_SampleCount)));
 
 		// generate sample_side^2 uniformly and stratified samples over the sphere
@@ -203,58 +191,82 @@ public:
 		std::mt19937 gen(rd());
 		std::uniform_real_distribution<> rng(0.0, 1.0);
 
+		Eigen::MatrixXf sh_buffer;
+		sh_buffer.resize(SHCoeffLength, 1);
+
         for (int t = 0; t < sample_side; t++) {
             for (int p = 0; p < sample_side; p++) {
-                double alpha = (t + rng(gen)) / sample_side;
-                double beta = (p + rng(gen)) / sample_side;
-
-                double phi = 2.0 * M_PI * beta;
-                double theta = acos(2.0 * alpha - 1.0);
-
-                Eigen::Array3d d = sh::ToVector(phi, theta);
-                const auto wi = Vector3f(d.x(), d.y(), d.z());
-
-                float Hs = wi.dot(n);
-                if (Hs <= 0)
-                {
-                    continue;
-                }
-
-                Intersection intersect;
-                if (scene->rayIntersect(Ray3f(v, wi), intersect))
-                {
-                    Point3f v_ = intersect.p;
-
-                    int t1 = intersect.tri_index.x();
-                    int t2 = intersect.tri_index.y();
-                    int t3 = intersect.tri_index.z();
-
-                    auto c1 = m_TransportSHCoeffs.col(t1);
-                    auto c2 = m_TransportSHCoeffs.col(t2);
-                    auto c3 = m_TransportSHCoeffs.col(t3);
-
-                    auto n1 = mesh->getVertexNormals().col(t1);
-                    auto n2 = mesh->getVertexNormals().col(t2);
-                    auto n3 = mesh->getVertexNormals().col(t3);
-
-                    Normal3f n_ = n1 * intersect.bary.x() + n2 * intersect.bary.y() + n3 * intersect.bary.z();
-
-                    Eigen::MatrixXf sh_buffer;
-                    sh_buffer.resize(SHCoeffLength, 1);
-
-                    sh_buffer.col(0) =
-                        (c1 * intersect.bary.x() +
-                            c2 * intersect.bary.y() +
-                            c3 * intersect.bary.z()) * albedo * factor;
-
-                        Interreflection(scene, sh_buffer, 0, bounce, v_, n_);
-
-                    outCoeffs.col(col) += sh_buffer.col(0) * Hs * avg;
-                }
-
+                InterreflectionInternal(scene, sh_buffer, 0, bounce, v, n);
             }
         }
+
+        const double avg = 1.0 / m_SampleCount;
+        outCoeffs.col(col) += sh_buffer * avg;
     }
+
+	void InterreflectionInternal(const Scene* scene, Eigen::MatrixXf& outCoeffs, int col, int bounce, const Point3f& v, const Normal3f& n)
+	{
+		if (bounce-- <= 0)
+		{
+			return;
+		}
+
+		const auto mesh = scene->getMeshes()[0];
+
+		constexpr double area = 4.0 * M_PI;
+		constexpr double albedo = 1.0 / M_PI;
+		const double factor = area / m_SampleCount / M_PI;
+
+		// generate sample_side^2 uniformly and stratified samples over the sphere
+		std::random_device rd;
+		std::mt19937 gen(rd());
+		std::uniform_real_distribution<> rng(0.0, 1.0);
+
+		double alpha = rng(gen);
+		double beta = rng(gen);
+
+		double phi = 2.0 * M_PI * beta;
+		double theta = acos(2.0 * alpha - 1.0);
+
+		Eigen::Array3d d = sh::ToVector(phi, theta);
+		const auto wi = Vector3f(d.x(), d.y(), d.z());
+
+		float Hs = wi.dot(n);
+		if (Hs <= 0)
+		{
+			return;
+		}
+
+		Intersection intersect;
+		if (scene->rayIntersect(Ray3f(v, wi), intersect))
+		{
+			Point3f v_ = intersect.p;
+
+			int t1 = intersect.tri_index.x();
+			int t2 = intersect.tri_index.y();
+			int t3 = intersect.tri_index.z();
+
+			auto c1 = m_TransportSHCoeffs.col(t1);
+			auto c2 = m_TransportSHCoeffs.col(t2);
+			auto c3 = m_TransportSHCoeffs.col(t3);
+
+			auto n1 = mesh->getVertexNormals().col(t1);
+			auto n2 = mesh->getVertexNormals().col(t2);
+			auto n3 = mesh->getVertexNormals().col(t3);
+
+			Normal3f n_ = n1 * intersect.bary.x() + n2 * intersect.bary.y() + n3 * intersect.bary.z();
+
+            outCoeffs.col(0) +=
+				(c1 * intersect.bary.x() +
+					c2 * intersect.bary.y() +
+					c3 * intersect.bary.z()) * albedo * factor * Hs;
+
+			//if (rng(gen) > 0.5)
+			{
+				InterreflectionInternal(scene, outCoeffs, 0, bounce, v_, n_);
+			}
+		}
+	}
 
     virtual void preprocess(const Scene *scene) override
     {
