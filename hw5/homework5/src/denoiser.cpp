@@ -117,67 +117,70 @@ Buffer2D<Float3> Denoiser::Filter(const FrameInfo &frameInfo) {
     int width = frameInfo.m_beauty.m_width;
     Buffer2D<Float3> filteredImage = CreateBuffer2D<Float3>(width, height);
     int kernelRadius = 16;
+
+    // bonus: a-trous wavelet
+    int passNum = 5;
+    for (int iPass=0; iPass < passNum; ++iPass)
+    {
 #pragma omp parallel for
-    for (int y = 0; y < height; y++) {
-        for (int x = 0; x < width; x++) {
-            // TODO: Joint bilateral filter
-            //filteredImage(x, y) = frameInfo.m_beauty(x, y);
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                // TODO: Joint bilateral filter
+                // filteredImage(x, y) = frameInfo.m_beauty(x, y);
 
-            Float3 C_0 = frameInfo.m_beauty(x, y);
+                Float3 C_0 = ( iPass==0 ? frameInfo.m_beauty(x, y) : filteredImage(x, y) );
 
-            if (frameInfo.m_id(x, y) < 0)
-            {
-                filteredImage(x, y) = C_0;
-                continue;
-            }
-
-            Float3 N_0 = frameInfo.m_normal(x, y);
-            Float3 P_0 = frameInfo.m_position(x, y);
-
-            int Y_min = std::clamp(y - kernelRadius, 0, height - 1);
-            int Y_max = std::clamp(y + kernelRadius, 0, height - 1);
-            int X_min = std::clamp(x - kernelRadius, 0, width - 1);
-            int X_max = std::clamp(x + kernelRadius, 0, width - 1);
-
-            float W_sum = 0;
-            Float3 C_sum(0.f);
-
-            for (int K_x=X_min; K_x<=X_max; ++K_x)
-            {
-                for (int K_y=Y_min; K_y<=Y_max; ++K_y)
-                {
-                    if (frameInfo.m_id(K_x, K_y) < 0)
-                    {
-                        continue;
-                    }
-
-                    float a = (Sqr(x - K_x) + Sqr(y - K_y)) / (2 * Sqr(m_sigmaCoord));
-
-                    Float3 C_k = frameInfo.m_beauty(K_x, K_y);
-                    float b = SqrDistance(C_0, C_k) / (2 * Sqr(m_sigmaColor));
-
-                    Float3 N_k = frameInfo.m_normal(K_x, K_y);
-                    float D_n = SafeAcos( Dot(N_0, N_k) );
-                    float c = Sqr(D_n) / (2 * Sqr(m_sigmaNormal));
-
-                    Float3 P_k = frameInfo.m_position(K_x, K_y);
-                    float D_p = 1.0f;
-                    if (SqrDistance(P_0, P_k) > 0.0001f)
-                    {
-                        Float3 P = Normalize(P_k - P_0);
-                        D_p = Dot(N_k, P);
-                    }
-                    float d = Sqr(D_p) / (2 * Sqr(m_sigmaPlane));
-
-                    float w = std::expf(-a - b - c - d);
-                    W_sum += w;
-                    C_sum += C_k * w;
+                if (frameInfo.m_id(x, y) < 0) {
+                    filteredImage(x, y) = C_0;
+                    continue;
                 }
-            }
 
-            filteredImage(x, y) = C_sum / W_sum;
+                Float3 N_0 = frameInfo.m_normal(x, y);
+                Float3 P_0 = frameInfo.m_position(x, y);
+
+                int step = ( iPass == 0 ? 1 : 2 << (iPass - 1) );
+                int Y_min = std::clamp(y - kernelRadius * step, 0, height - 1);
+                int Y_max = std::clamp(y + kernelRadius * step, 0, height - 1);
+                int X_min = std::clamp(x - kernelRadius * step, 0, width - 1);
+                int X_max = std::clamp(x + kernelRadius * step, 0, width - 1);
+
+                float W_sum = 0;
+                Float3 C_sum(0.f);
+
+                for (int K_x = X_min; K_x <= X_max; K_x+=step) {
+                    for (int K_y = Y_min; K_y <= Y_max; K_y+=step) {
+                        if (frameInfo.m_id(K_x, K_y) < 0) {
+                            continue;
+                        }
+
+                        float a = (Sqr(x - K_x) + Sqr(y - K_y)) / (2 * Sqr(m_sigmaCoord));
+
+                        Float3 C_k = ( iPass==0 ? frameInfo.m_beauty(K_x, K_y) : filteredImage(x, y) );
+                        float b = SqrDistance(C_0, C_k) / (2 * Sqr(m_sigmaColor));
+
+                        Float3 N_k = frameInfo.m_normal(K_x, K_y);
+                        float D_n = SafeAcos(Dot(N_0, N_k));
+                        float c = Sqr(D_n) / (2 * Sqr(m_sigmaNormal));
+
+                        Float3 P_k = frameInfo.m_position(K_x, K_y);
+                        float D_p = 1.0f;
+                        if (SqrDistance(P_0, P_k) > 0.0001f) {
+                            Float3 P = Normalize(P_k - P_0);
+                            D_p = Dot(N_k, P);
+                        }
+                        float d = Sqr(D_p) / (2 * Sqr(m_sigmaPlane));
+
+                        float w = std::expf(-a - b - c - d);
+                        W_sum += w;
+                        C_sum += C_k * w;
+                    }
+                }
+
+                filteredImage(x, y) = W_sum < 0.0001f ? C_0 : C_sum / W_sum;
+            }
         }
     }
+    
     return filteredImage;
 }
 

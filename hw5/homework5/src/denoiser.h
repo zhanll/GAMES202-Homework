@@ -40,7 +40,8 @@ class Denoiser {
 
     float m_alpha = 0.2f;
     float m_sigmaPlane = 0.1f;
-    float m_sigmaColor = 0.6f;
+    float m_sigmaColor = 0.6f; // for cornell-box
+    //float m_sigmaColor = 8.0f; // for pink-room
     float m_sigmaNormal = 0.1f;
     float m_sigmaCoord = 32.0f;
     float m_colorBoxK = 1.0f;
